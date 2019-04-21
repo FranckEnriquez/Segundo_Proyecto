@@ -1,0 +1,75 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% ALGORITMO DE TRADING USANDO UN PROMEDIO MOVIL %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Limpieza inicial
+clear all;
+close all;
+clc;
+
+% Obtener fecha de hoy en formato de tipo "23" corresponde a 'mm/dd/yyyy'
+hoy = datestr(date,23);
+
+% Obtener la fecha de hace un año en formato serial 
+% (número de dias desde el 0 de enero del 2000)
+inicio = datestr(datenum(date)-365,23);
+
+% Obtener los precios de cierre del ultimo año del precio de MASECA
+data = downloadValues('GRUMAB.MX',inicio,hoy,'d','history');
+precios = data.AdjClose; % Seleccionar los precios de cierre ajustados
+
+% Inicio del algoritmo
+npm = 9; % Numero de dias usados para calcular el promedio movil
+cap = 10000*ones(size(precios)); % Capital inicial a invertir
+nac = zeros(size(precios)); % Numero de acciones disponibles al inicio de la simulacion
+com = 0.0029; % Comision por operacion
+
+% Calcular promedio movil por dia t
+for t = 0:size(precios,1)-npm
+    
+    % Vector de tamaño dinámico de promedios moviles pm
+    pm(npm+t) = mean(precios(t+1:npm+t)); % Computar promedio de los npm dais anteriores
+    
+    % Generar señales de compra y venta comparando el precio de cierre
+    % con el del promedio movil calculado anteriormente
+    if pm(npm+t) < precios(npm+t)
+        
+        % Señal de compra, i.e. si el promedio movil es menor que 
+        % el precio actual, es decir, el precio cruza hacia arriba el promedio.
+        
+        % Obtener el número de acciones adquiribles con el capital actual
+        % tomando en cuenta la comisión de transacción por unidad
+        units = floor((cap(npm+t))/((1+com)*precios(npm+t)));
+        
+    else
+        
+        % Vender, si el precio cruza hacia abajo la media movil.
+        units = -nac(npm+t);
+    end
+    nac(npm+t+1) = nac(npm+t) + units;
+    cap(npm+t+1) = cap(npm+t) - precios(npm+t) * units-com*precios(npm+t)*abs(units);
+end
+
+%% Visualizaci?n de los resultados
+T = (1:size(precios,1))';
+figure(1);
+subplot(4,1,1);
+plot(T,precios,'b-',T(npm:end),pm(npm:end),'r--');
+title(sprintf('Promedio Movil a %d d?as',npm)),xlabel('# dias'), ylabel('precio');
+legend('precio','promedio','Location','NorthEastOutside');
+grid;
+subplot(4,1,2);
+plot(T,nac(1:end-1,1),'b-');
+xlabel('# dias'), ylabel('# acciones');
+legend('# acciones','Location','NorthEastOutside');
+grid;
+subplot(4,1,3);
+plot(T,cap(1:end-1,1),'b-');
+xlabel('# dias'), ylabel('$');
+legend('capital','Location','NorthEastOutside');
+grid;
+subplot(4,1,4);
+plot(T,100*(cap(1:end-1,1)+precios.*nac(1:end-1,1)-cap(1,1))/cap(1,1),'b-');
+xlabel('# dias'), ylabel('rendimiento (%)');
+legend('Total','Location','NorthEastOutside');
+grid;
